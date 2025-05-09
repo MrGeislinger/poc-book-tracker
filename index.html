@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior-y: contain; /* Prevents pull-to-refresh on mobile when scrolling */
+        }
+        .timer-display {
+            font-size: 3rem; /* Larger timer text */
+        }
+        /* Custom scrollbar for book list if needed */
+        .book-list-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .book-list-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1; /* cool-gray-300 */
+            border-radius: 4px;
+        }
+        .book-list-container::-webkit-scrollbar-track {
+            background-color: #f1f5f9; /* cool-gray-100 */
+        }
+        /* Ensure buttons have good touch targets */
+        button, input[type="button"], input[type="submit"] {
+            padding: 0.75rem 1.5rem; /* Tailwind p-3 px-6 equivalent */
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+        }
+        input[type="text"], input[type="number"], textarea {
+            padding: 0.75rem; /* Tailwind p-3 */
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+        }
+        /* Basic focus styles for accessibility */
+        button:focus-visible, input:focus-visible, textarea:focus-visible {
+            outline: 2px solid #2563eb; /* Tailwind focus:ring-2 focus:ring-blue-500 */
+            outline-offset: 2px;
+        }
+        /* Modal styles */
+        .modal {
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+        .modal-content {
+             transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col items-center justify-center min-h-screen p-4 selection:bg-sky-300 selection:text-sky-900">
+
+    <div class="bg-white shadow-xl rounded-lg w-full max-w-md p-6 space-y-6">
+        <div id="mainDisplay" class="text-center space-y-4">
+            <div id="initialState" class="space-y-4">
+                <h1 class="text-2xl font-semibold text-sky-700">Reading Tracker</h1>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="newBookTitle" placeholder="Enter new book title" class="flex-grow p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150">
+                    <button id="startNewBookBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold p-3 rounded-lg transition duration-150 flex items-center">
+                        <svg id="icon-plus-circle-initial" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-circle mr-2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+                        Start New
+                    </button>
+                </div>
+            </div>
+
+            <div id="readingState" class="hidden space-y-4">
+                <h2 id="currentBookTitle" class="text-3xl font-bold text-sky-700 break-all">Book Title</h2>
+                <div id="timerDisplay" class="timer-display font-mono text-slate-700">00:00</div>
+                <div class="grid grid-cols-2 gap-4 items-center">
+                    <label for="currentPageInput" class="text-sm font-medium text-slate-600 text-left">Current Page:</label>
+                    <input type="number" id="currentPageInput" placeholder="Page" class="p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150 text-center appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                </div>
+                <div class="flex flex-col sm:flex-row justify-center gap-3 pt-2">
+                    <button id="lapNoteBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 flex items-center justify-center">
+                        <svg id="icon-file-plus-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-plus-2 mr-2"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M3 15h6"/><path d="M6 12v6"/></svg>
+                        Lap Note
+                    </button>
+                    <button id="pauseBtn" class="bg-rose-500 hover:bg-rose-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 flex items-center justify-center">
+                        <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause mr-2"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></svg>
+                        Pause
+                    </button>
+                    <button id="resumeBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 hidden flex items-center justify-center">
+                         <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play mr-2"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                        Resume
+                    </button>
+                    <button id="endSessionBtn" class="bg-slate-500 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150 hidden flex items-center justify-center">
+                        <svg id="icon-stop-circle" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stop-circle mr-2"><circle cx="12" cy="12" r="10"/><rect width="6" height="6" x="9" y="9"/></svg>
+                        End Session
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <div class="flex justify-between items-center border-b pb-2 mb-3">
+                <h3 class="text-xl font-semibold text-sky-600">My Books</h3>
+                <button id="exportDataBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-3 text-sm rounded-lg transition duration-150 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download mr-1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export CSV
+                </button>
+            </div>
+            <div id="bookListContainer" class="max-h-60 overflow-y-auto space-y-2 book-list-container p-1">
+                <p id="noBooksMessage" class="text-slate-500 text-center">No books started yet.</p>
+            </div>
+        </div>
+
+        <div id="lapNoteModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-50 backdrop-blur-sm">
+            <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-lg space-y-4 transform scale-95 opacity-0" id="lapNoteModalContent">
+                <h3 class="text-xl font-semibold text-sky-700">Add Lap Note</h3>
+                <p>Book: <span id="lapNoteBookTitle" class="font-semibold"></span></p>
+                <p>Time: <span id="lapNoteTime" class="font-semibold"></span></p>
+                <div>
+                    <label for="lapPageInput" class="block text-sm font-medium text-slate-700 mb-1">Page Number:</label>
+                    <input type="number" id="lapPageInput" placeholder="Enter page number" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150 appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
+                </div>
+                <div>
+                    <label for="lapNotesText" class="block text-sm font-medium text-slate-700 mb-1">Notes (Optional):</label>
+                    <textarea id="lapNotesText" rows="3" placeholder="Add any notes for this lap..." class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150"></textarea>
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button id="cancelLapNoteBtn" class="bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold py-2 px-4 rounded-lg transition duration-150">Discard</button>
+                    <button id="saveLapNoteBtn" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">Save Note</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="customMessageModal" class="modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden z-[60] backdrop-blur-sm">
+            <div class="modal-content bg-white p-6 rounded-lg shadow-xl w-full max-w-sm space-y-4 transform scale-95 opacity-0">
+                <h3 id="customMessageTitle" class="text-xl font-semibold text-sky-700">Message</h3>
+                <p id="customMessageText" class="text-slate-700"></p>
+                <div id="customMessageButtons" class="flex justify-end gap-3">
+                    </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // DOM Elements
+        const initialStateDiv = document.getElementById('initialState');
+        const readingStateDiv = document.getElementById('readingState');
+        const newBookTitleInput = document.getElementById('newBookTitle');
+        const startNewBookBtn = document.getElementById('startNewBookBtn');
+        const currentBookTitleDisplay = document.getElementById('currentBookTitle');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const currentPageInput = document.getElementById('currentPageInput');
+        const lapNoteBtn = document.getElementById('lapNoteBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const endSessionBtn = document.getElementById('endSessionBtn');
+        const bookListContainer = document.getElementById('bookListContainer');
+        const noBooksMessage = document.getElementById('noBooksMessage');
+        const exportDataBtn = document.getElementById('exportDataBtn');
+
+        // Lap Note Modal Elements
+        const lapNoteModal = document.getElementById('lapNoteModal');
+        const lapNoteModalContent = document.getElementById('lapNoteModalContent');
+        const lapNoteBookTitle = document.getElementById('lapNoteBookTitle');
+        const lapNoteTime = document.getElementById('lapNoteTime');
+        const lapPageInput = document.getElementById('lapPageInput');
+        const lapNotesText = document.getElementById('lapNotesText');
+        const cancelLapNoteBtn = document.getElementById('cancelLapNoteBtn');
+        const saveLapNoteBtn = document.getElementById('saveLapNoteBtn');
+
+        // Custom Message Modal Elements
+        const customMessageModal = document.getElementById('customMessageModal');
+        const customMessageModalContent = customMessageModal.querySelector('.modal-content');
+        const customMessageTitle = document.getElementById('customMessageTitle');
+        const customMessageText = document.getElementById('customMessageText');
+        const customMessageButtons = document.getElementById('customMessageButtons');
+
+
+        // App State
+        let books = [];
+        let currentBook = null;
+        let timerInterval = null;
+        let sessionSeconds = 0; 
+        let isPaused = false;
+        let pendingLapTimestamp = null; // To store timestamp when lap button is pressed
+
+        // --- Custom Message Modal Functions ---
+        const showCustomMessage = (message, title = "Alert", type = "alert", onConfirm = null, onCancel = null) => {
+            customMessageText.textContent = message;
+            customMessageTitle.textContent = title;
+            customMessageButtons.innerHTML = ''; 
+
+            if (type === "confirm") {
+                const confirmBtn = document.createElement('button');
+                confirmBtn.textContent = "Confirm";
+                confirmBtn.className = "bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150";
+                confirmBtn.onclick = () => {
+                    closeCustomMessage();
+                    if (onConfirm) onConfirm();
+                };
+                customMessageButtons.appendChild(confirmBtn);
+
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = "Cancel";
+                cancelBtn.className = "bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold py-2 px-4 rounded-lg transition duration-150";
+                cancelBtn.onclick = () => {
+                    closeCustomMessage();
+                    if (onCancel) onCancel();
+                };
+                customMessageButtons.appendChild(cancelBtn);
+                cancelBtn.focus(); 
+            } else { 
+                const okBtn = document.createElement('button');
+                okBtn.textContent = "OK";
+                okBtn.className = "bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150";
+                okBtn.onclick = () => {
+                    closeCustomMessage();
+                    if (onConfirm) onConfirm(); 
+                };
+                customMessageButtons.appendChild(okBtn);
+                okBtn.focus(); 
+            }
+
+            customMessageModal.classList.remove('hidden');
+            setTimeout(() => {
+                customMessageModalContent.classList.remove('scale-95', 'opacity-0');
+                customMessageModalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+        };
+
+        const closeCustomMessage = () => {
+            customMessageModalContent.classList.remove('scale-100', 'opacity-100');
+            customMessageModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                customMessageModal.classList.add('hidden');
+            }, 200);
+        };
+        
+        customMessageModal.addEventListener('click', (e) => {
+            if (e.target === customMessageModal) {
+                const okButton = customMessageButtons.querySelector('button:nth-child(1)'); 
+                if (customMessageButtons.children.length === 1 && okButton) { 
+                    okButton.click();
+                }
+            }
+        });
+
+
+        // --- Utility Functions ---
+        const formatTime = (totalSeconds) => {
+            if (isNaN(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = Math.round(totalSeconds % 60);
+            if (hours > 0) {
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        };
+
+        const saveBooks = () => {
+            localStorage.setItem('readingTrackerBooks', JSON.stringify(books));
+        };
+
+        const loadBooks = () => {
+            const storedBooks = localStorage.getItem('readingTrackerBooks');
+            if (storedBooks) {
+                books = JSON.parse(storedBooks);
+            }
+        };
+
+        // --- UI Update Functions ---
+        const renderBookList = () => {
+            bookListContainer.innerHTML = ''; 
+            if (books.length === 0) {
+                noBooksMessage.classList.remove('hidden');
+                exportDataBtn.classList.add('hidden'); 
+                return;
+            }
+            noBooksMessage.classList.add('hidden');
+            exportDataBtn.classList.remove('hidden'); 
+
+            books.sort((a,b) => (b.lastActivity || 0) - (a.lastActivity || 0)); 
+
+            books.forEach(book => {
+                const bookDiv = document.createElement('div');
+                bookDiv.className = `p-3 bg-slate-50 rounded-lg shadow-sm flex justify-between items-center cursor-pointer hover:bg-slate-200 transition duration-150 ${book.isFinished ? 'opacity-70' : ''}`;
+                bookDiv.dataset.bookId = book.id;
+
+                let iconSvg;
+                if (book.isFinished) {
+                    iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle-2 text-green-500 mr-3 flex-shrink-0"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>`;
+                } else if (currentBook && currentBook.id === book.id && !isPaused) {
+                     iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-book-open-text text-sky-500 mr-3 flex-shrink-0"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/><path d="M6 8h2"/><path d="M6 12h2"/><path d="M16 8h2"/><path d="M16 12h2"/></svg>`;
+                } else if (currentBook && currentBook.id === book.id && isPaused) {
+                    iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-book-dashed text-amber-500 mr-3 flex-shrink-0"><path d="M20 22H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2Z"/><path d="M12 2v4"/><path d="M12 10v4"/><path d="M12 18v4"/><path d="M12 6H8.5"/><path d="M12 6h3.5"/><path d="M12 14H8.5"/><path d="M12 14h3.5"/></svg>`;
+                }
+                else {
+                    iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-book-marked text-slate-500 mr-3 flex-shrink-0"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><polyline points="10 2 10 10 13 7 16 10 16 2"/></svg>`;
+                }
+
+                bookDiv.innerHTML = `
+                    <div class="flex items-center overflow-hidden">
+                        ${iconSvg}
+                        <div class="flex-grow overflow-hidden">
+                            <p class="font-medium text-slate-700 truncate" title="${book.title}">${book.title}</p>
+                            <p class="text-xs text-slate-500">
+                                ${book.isFinished ? 'Finished' : `Page ${book.currentPage || 0}`} - ${formatTime(book.totalTimeSeconds || 0)}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 ml-2">
+                        ${!book.isFinished ? `<button data-action="resume-book" data-book-id="${book.id}" class="text-xs bg-emerald-500 hover:bg-emerald-600 text-white py-1 px-2 rounded">Resume</button>` : ''}
+                        <button data-action="delete-book" data-book-id="${book.id}" class="text-xs bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded ml-1">Del</button>
+                    </div>
+                `;
+                bookListContainer.appendChild(bookDiv);
+            });
+        };
+
+        const updateUIForState = (state) => {
+            initialStateDiv.classList.add('hidden');
+            readingStateDiv.classList.add('hidden');
+
+            if (state === 'initial') {
+                initialStateDiv.classList.remove('hidden');
+                currentBook = null; 
+                stopTimer(); 
+                timerDisplay.textContent = "00:00"; 
+                currentPageInput.value = ""; 
+                newBookTitleInput.value = ""; 
+                currentBookTitleDisplay.textContent = "Book Title"; 
+            } else if (state === 'reading' || state === 'paused') {
+                readingStateDiv.classList.remove('hidden');
+                currentBookTitleDisplay.textContent = currentBook.title;
+                timerDisplay.textContent = formatTime(sessionSeconds);
+                currentPageInput.value = currentBook.currentPage || '';
+
+                if (isPaused) { 
+                    pauseBtn.classList.add('hidden');
+                    lapNoteBtn.classList.add('hidden'); 
+                    resumeBtn.classList.remove('hidden');
+                    endSessionBtn.classList.remove('hidden');
+                    timerDisplay.classList.add('text-amber-500'); 
+                    timerDisplay.classList.remove('text-slate-700');
+                } else { 
+                    pauseBtn.classList.remove('hidden');
+                    lapNoteBtn.classList.remove('hidden');
+                    resumeBtn.classList.add('hidden');
+                    endSessionBtn.classList.add('hidden');
+                    timerDisplay.classList.remove('text-amber-500');
+                    timerDisplay.classList.add('text-slate-700');
+                }
+            }
+            renderBookList(); 
+        };
+
+        // --- Timer Functions ---
+        const startTimer = () => {
+            if (timerInterval) clearInterval(timerInterval); 
+            isPaused = false;
+            timerInterval = setInterval(() => {
+                sessionSeconds++; 
+                if (currentBook) currentBook.totalTimeSeconds++; 
+                timerDisplay.textContent = formatTime(sessionSeconds); 
+            }, 1000);
+            updateUIForState('reading'); 
+        };
+
+        const stopTimer = () => {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        };
+
+        const pauseTimer = () => {
+            if (!currentBook) return;
+            stopTimer();
+            isPaused = true;
+            currentBook.currentPage = parseInt(currentPageInput.value) || currentBook.currentPage || 0;
+            currentBook.lastActivity = Date.now(); 
+            
+            currentBook.history.push({
+                timestamp: Date.now(), // Timestamp of pause button press
+                event: 'paused_timer', 
+                page: currentBook.currentPage,
+            });
+
+            saveBooks(); 
+            updateUIForState('paused'); 
+        };
+
+        const resumeTimer = () => {
+            if (!currentBook) return; 
+            isPaused = false;
+            currentBook.history.push({
+                timestamp: Date.now(), // Timestamp of resume action
+                event: 'resume_session',
+                page: parseInt(currentPageInput.value) || currentBook.currentPage || 0,
+            });
+            sessionSeconds = 0; 
+            startTimer(); 
+        };
+
+        // --- Book Management Functions ---
+        const startNewBookSession = (title) => {
+            if (!title.trim()) {
+                showCustomMessage("Please enter a book title.", "Missing Title");
+                return;
+            }
+            if (currentBook) { 
+                 endCurrentSession(false); 
+            }
+
+            currentBook = {
+                id: `book_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, 
+                title: title.trim(),
+                currentPage: 0, 
+                totalTimeSeconds: 0, 
+                laps: [], 
+                history: [{ 
+                    timestamp: Date.now(), 
+                    event: 'start_session', 
+                    page: 0, 
+                }], 
+                lastActivity: Date.now(),
+                isFinished: false,
+            };
+            books.push(currentBook);
+            sessionSeconds = 0; 
+            currentPageInput.value = '0'; 
+            saveBooks();
+            startTimer(); 
+        };
+        
+        const endCurrentSession = (markAsFinished = false) => {
+            if (!currentBook) return;
+            stopTimer();
+            currentBook.currentPage = parseInt(currentPageInput.value) || currentBook.currentPage || 0;
+            
+            currentBook.history.push({
+                timestamp: Date.now(), // Timestamp of ending action
+                event: markAsFinished ? 'finished_book' : 'ended_reading_period', 
+                page: currentBook.currentPage,
+            });
+            currentBook.isFinished = markAsFinished;
+            currentBook.lastActivity = Date.now();
+            
+            const bookIndex = books.findIndex(b => b.id === currentBook.id);
+            if (bookIndex !== -1) {
+                books[bookIndex] = { ...currentBook }; 
+            }
+
+            saveBooks(); 
+            currentBook = null; 
+            sessionSeconds = 0; 
+            updateUIForState('initial'); 
+        };
+
+        const deleteBook = (bookId) => {
+            showCustomMessage(
+                "Are you sure you want to delete this book and all its data? This action cannot be undone.",
+                "Confirm Deletion",
+                "confirm",
+                () => { 
+                    books = books.filter(b => b.id !== bookId);
+                    if (currentBook && currentBook.id === bookId) {
+                        endCurrentSession(false); 
+                    }
+                    saveBooks();
+                    renderBookList(); 
+                    if (!currentBook) { 
+                        updateUIForState('initial'); 
+                    }
+                }
+            );
+        };
+
+
+        // --- Lap Note Functions ---
+        const openLapNoteModal = () => {
+            if (!currentBook) return;
+            pendingLapTimestamp = Date.now(); // Capture timestamp when lap button is PRESSED
+            lapNoteBookTitle.textContent = currentBook.title;
+            lapNoteTime.textContent = formatTime(sessionSeconds); 
+            lapPageInput.value = currentPageInput.value || currentBook.currentPage || ''; 
+            lapNotesText.value = ''; 
+            lapNoteModal.classList.remove('hidden');
+            setTimeout(() => { 
+                lapNoteModalContent.classList.remove('scale-95', 'opacity-0');
+                lapNoteModalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+            lapPageInput.focus(); 
+        };
+
+        const closeLapNoteModal = () => {
+            pendingLapTimestamp = null; // Clear pending timestamp if modal is closed without saving
+            lapNoteModalContent.classList.remove('scale-100', 'opacity-100');
+            lapNoteModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                lapNoteModal.classList.add('hidden');
+            }, 200); 
+        };
+
+        const saveLapNote = () => {
+            if (!currentBook || pendingLapTimestamp === null) return; // Ensure there's a pending lap
+            const page = parseInt(lapPageInput.value);
+            const notes = lapNotesText.value.trim();
+
+            if (isNaN(page) || page < 0) { 
+                showCustomMessage("Please enter a valid page number for the lap.", "Invalid Page");
+                lapPageInput.focus();
+                return;
+            }
+            
+            // Add to the book's internal 'laps' array (optional, if used elsewhere)
+            currentBook.laps.push({ 
+                 timeAtLap: sessionSeconds, // On-screen timer at the moment of lap button press
+                 page: page,
+                 notes: notes,
+                 timestamp: pendingLapTimestamp // Wall-clock time of lap button press
+            });
+
+            // Update current page displayed in UI
+            currentBook.currentPage = page; 
+            currentPageInput.value = page; 
+            currentBook.lastActivity = pendingLapTimestamp; // Use lap button press time
+            
+            // Push to history using the timestamp from when the lap button was pressed
+            currentBook.history.push({
+                timestamp: pendingLapTimestamp, 
+                event: 'lap_note_recorded', 
+                page: page, // Page from the modal
+                notes: notes,
+            });
+            
+            pendingLapTimestamp = null; // Reset pending timestamp
+            saveBooks();
+            renderBookList(); 
+            closeLapNoteModal();
+        };
+
+        // --- CSV Export Function ---
+        const escapeCsvCell = (cellData) => {
+            if (cellData === null || cellData === undefined) return '';
+            let cellString = String(cellData);
+            if (cellString.includes(',') || cellString.includes('"') || cellString.includes('\n')) {
+                cellString = cellString.replace(/"/g, '""');
+                return `"${cellString}"`;
+            }
+            return cellString;
+        };
+
+        const exportDataToCSV = () => {
+            if (books.length === 0) {
+                showCustomMessage("No data to export.", "Export Empty");
+                return;
+            }
+
+            const csvHeader = "Book Title,Start Date,Start Time,Start Page,End Date,End Time,End Page,Total Session Time,Note Text\n";
+            let csvRows = [];
+
+            books.forEach(book => {
+                if (!book.history || book.history.length === 0) return;
+
+                let segmentStartEvent = null;
+                // Ensure history is sorted by timestamp for correct segment processing
+                const sortedHistory = [...book.history].sort((a, b) => a.timestamp - b.timestamp);
+
+                sortedHistory.forEach(eventToEndSegment => { 
+                    const eventType = eventToEndSegment.event;
+
+                    if (segmentStartEvent) {
+                        // These events can end a segment
+                        if (eventType === 'lap_note_recorded' || 
+                            eventType === 'paused_timer' || 
+                            eventType === 'ended_reading_period' || 
+                            eventType === 'finished_book') {
+                            
+                            const startDateObj = new Date(segmentStartEvent.timestamp);
+                            const endDateObj = new Date(eventToEndSegment.timestamp);
+
+                            // Ensure end date is not before start date (can happen with rapid clicks or system time issues)
+                            if (endDateObj < startDateObj) {
+                                console.warn("Segment end time is before start time. Skipping segment for book:", book.title, segmentStartEvent, eventToEndSegment);
+                                // If a lap note caused this, it becomes the new start. Otherwise, clear start.
+                                if (eventType === 'lap_note_recorded') {
+                                    segmentStartEvent = eventToEndSegment;
+                                } else {
+                                    segmentStartEvent = null;
+                                }
+                                return; // Skip this iteration
+                            }
+
+
+                            const totalSessionTimeMs = endDateObj.getTime() - startDateObj.getTime();
+                            const totalSessionTimeFormatted = formatTime(totalSessionTimeMs / 1000);
+
+                            const row = [
+                                escapeCsvCell(book.title), // Book Title
+                                escapeCsvCell(startDateObj.toLocaleDateString()),
+                                escapeCsvCell(startDateObj.toLocaleTimeString()),
+                                escapeCsvCell(segmentStartEvent.page),    // Start page from the start event
+                                escapeCsvCell(endDateObj.toLocaleDateString()),
+                                escapeCsvCell(endDateObj.toLocaleTimeString()),
+                                escapeCsvCell(eventToEndSegment.page),    // End page from the event that ends the segment
+                                escapeCsvCell(totalSessionTimeFormatted),
+                                escapeCsvCell(eventType === 'lap_note_recorded' ? eventToEndSegment.notes || "" : "")
+                            ];
+                            csvRows.push(row.join(','));
+
+                            // Determine the start of the *next* segment
+                            if (eventType === 'lap_note_recorded') {
+                                segmentStartEvent = eventToEndSegment; // This lap event starts the next segment
+                            } else {
+                                segmentStartEvent = null; // Pause/End/Finish: no immediate next segment from this event
+                            }
+                        }
+                        // If current event is a start/resume while a segment is active,
+                        // the new start/resume event will become segmentStartEvent in the next part of the code.
+                    }
+                    
+                    // If this event can start a new segment
+                    if (eventType === 'start_session' || eventType === 'resume_session') {
+                        segmentStartEvent = eventToEndSegment;
+                    } 
+                    // Note: if eventType was 'lap_note_recorded' and it just ended a segment,
+                    // it has already been set as the new segmentStartEvent above.
+                });
+            });
+
+            if (csvRows.length === 0) {
+                showCustomMessage("No complete reading sessions found to export.", "Export Empty");
+                return;
+            }
+
+            const csvContent = csvHeader + csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+
+            if (link.download !== undefined) { 
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "reading_tracker_sessions.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } else {
+                showCustomMessage("CSV export is not supported by your browser.", "Export Failed");
+            }
+        };
+
+
+        // --- Event Listeners ---
+        startNewBookBtn.addEventListener('click', () => {
+            startNewBookSession(newBookTitleInput.value);
+        });
+        newBookTitleInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                startNewBookSession(newBookTitleInput.value);
+            }
+        });
+
+        pauseBtn.addEventListener('click', pauseTimer);
+        resumeBtn.addEventListener('click', resumeTimer); 
+        endSessionBtn.addEventListener('click', () => { 
+            showCustomMessage(
+                "Are you sure you want to end this reading period? You can resume this book later.",
+                "End Reading Period?",
+                "confirm",
+                () => { 
+                    endCurrentSession(false); 
+                }
+            );
+        });
+        
+        let pageUpdateTimeout;
+        currentPageInput.addEventListener('input', () => {
+            if (currentBook && !isPaused) { 
+                clearTimeout(pageUpdateTimeout);
+                pageUpdateTimeout = setTimeout(() => {
+                    const newPage = parseInt(currentPageInput.value);
+                    if (!isNaN(newPage) && newPage >= 0) {
+                        currentBook.currentPage = newPage; 
+                    }
+                }, 750); 
+            }
+        });
+
+        lapNoteBtn.addEventListener('click', openLapNoteModal); // openLapNoteModal now captures pendingLapTimestamp
+        cancelLapNoteBtn.addEventListener('click', closeLapNoteModal);
+        saveLapNoteBtn.addEventListener('click', saveLapNote); // saveLapNote uses pendingLapTimestamp
+        lapNoteModal.addEventListener('click', (e) => { 
+            if (e.target === lapNoteModal) {
+                closeLapNoteModal();
+            }
+        });
+
+        bookListContainer.addEventListener('click', (e) => {
+            const targetButton = e.target.closest('button[data-action]');
+            if (targetButton) { 
+                const action = targetButton.dataset.action;
+                const bookId = targetButton.dataset.bookId;
+                if (action === 'resume-book') {
+                    const bookToResume = books.find(b => b.id === bookId);
+                    if (bookToResume && !bookToResume.isFinished) {
+                        if (currentBook && currentBook.id !== bookToResume.id) {
+                            endCurrentSession(false); 
+                        }
+                        currentBook = bookToResume; 
+                        currentPageInput.value = currentBook.currentPage || '0'; 
+                        resumeTimer(); 
+                    }
+                } else if (action === 'delete-book') {
+                    deleteBook(bookId);
+                }
+            } else { 
+                 const targetDiv = e.target.closest('div[data-book-id]');
+                 if (targetDiv) {
+                    const bookId = targetDiv.dataset.bookId;
+                    const book = books.find(b => b.id === bookId);
+                    if (book && !book.isFinished) { 
+                        if (currentBook && currentBook.id !== book.id) {
+                            endCurrentSession(false); 
+                        }
+                        currentBook = book; 
+                        currentPageInput.value = currentBook.currentPage || '0'; 
+                        resumeTimer(); 
+                    }
+                 }
+            }
+        });
+
+        exportDataBtn.addEventListener('click', exportDataToCSV);
+        
+        // --- Initialization ---
+        const init = () => {
+            loadBooks(); 
+            updateUIForState('initial'); 
+            if (typeof lucide === 'undefined') {
+                console.warn("Lucide icons UMD script not loaded. Ensure SVGs are embedded or script is available.");
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>
